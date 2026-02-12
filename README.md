@@ -1,0 +1,232 @@
+# Installing requirements
+
+Please use a Python3.11> environment.
+
+```
+pip install -r requirements.txt
+```
+
+# Downloading the dataset
+
+```shell
+python utils/download_datasets.py \
+    --dataset_save_directory /*address to the download directory*/ \
+    --cache_dir /*address to the cache directory ([optional], default is ./cache)*/
+```
+
+# Evaluating the generated responses
+
+To evaluate the generated responses to the questions in each dataset, use the following script:
+
+```shell
+python evaluate_responses.py \
+    --evaluator_llm "Qwen/Qwen2.5-32B-Instruct" \
+    --inputs_addr /*address to the dataset file to be evaluated (validation.json or test.json)*/ \
+    --response_addr /*address to the generated responses to the questions for the dataset*/ \
+    --score_addr /*address to where the output score file should be saved*/ \
+```
+
+# Baselines
+
+The baselines script supports multiple personalization methods and domain adaptation strategies. All methods support domain filtering to control which user profile posts are included.
+
+## Domain Categories
+
+The dataset includes three main domain categories:
+- **Art_and_Entertainment**: anime, boardgames, gaming, literature, movies, music, musicfans, rpg, scifi, sound
+- **Lifestyle_and_Personal_Development**: bicycles, cooking, diy, fitness, freelancing, gardening, health, lifehacks, martialarts, outdoors, parenting, pets, sports, sustainability, travel, woodworking, workplace, writers
+- **Society_and_Culture**: academia, buddhism, christianity, english, expatriates, genealogy, hermeneutics, hinduism, history, interpersonal, islam, judaism, law, linguistics, money, philosophy, politics, skeptics, vegetarianism
+
+## Domain Adaptation Strategies
+
+- **multi_domain**: Uses all posts from the user profile (no filtering)
+- **cross_domain**: Limits the number of posts from the target domain while keeping other posts (controlled by `--num_target_domain_contexts`, kept to 0)
+- **in_domain**: Only keeps posts from the target domain, removes all others
+
+## Personalization Methods
+
+### No Personalization (`--method nopers`)
+
+To run a non-personalized LLM without using user profile information:
+
+For open-source models:
+```shell
+python baselines.py \
+    --model_addr /*address or name of the open model to be evaluated*/ \
+    --inputs_addr /*address to the dataset file to be evaluated (validation.json or test.json)*/ \
+    --output_addr /*address to where the outputs should be saved*/ \
+    --method nopers \
+    --domain_adaptation multi_domain \
+    --temperature 0.1
+```
+
+For OpenAI models:
+```shell
+python baselines.py \
+    --model_addr /*name of the OpenAI model to be evaluated*/ \
+    --inputs_addr /*address to the dataset file to be evaluated (validation.json or test.json)*/ \
+    --output_addr /*address to where the outputs should be saved*/ \
+    --method nopers \
+    --domain_adaptation multi_domain \
+    --temperature 0.1 \
+    --openai \
+    --api_key_addr /*address to a file that contains the API key for OpenAI*/
+```
+
+### RAG-Personalization (`--method rag`)
+
+To use RAG for personalization, first rank user profiles based on their similarity to the given question using Contriever:
+
+```shell
+python retrieval/rank_dataset.py \
+    --input_dataset_addr /*address to the dataset file*/ \
+    --output_dataset_addr /*address to where the dataset with sorted profile for each user should be saved*/ \
+    --model_name "facebook/contriever-msmarco" \
+    --batch_size 16
+```
+
+Then run RAG-Personalization with domain filtering. For example, for **cross-domain** adaptation:
+
+For open-source models:
+```shell
+python baselines.py \
+    --model_addr /*address or name of the open model to be evaluated*/ \
+    --inputs_addr /*address to the dataset file with ranked profile to be evaluated (validation_ranked.json or test_ranked.json)*/ \
+    --output_addr /*address to where the outputs should be saved*/ \
+    --method rag \
+    --domain_adaptation cross_domain \
+    --target_domain /*target domain category (e.g., Art_and_Entertainment)*/ \
+    --num_target_domain_contexts /*number of posts from target domain to keep (e.g., 2)*/ \
+    --num_contexts 10 \
+    --temperature 0.1
+```
+
+For OpenAI models:
+```shell
+python baselines.py \
+    --model_addr /*name of the OpenAI model to be evaluated*/ \
+    --inputs_addr /*address to the dataset file with ranked profile to be evaluated (validation_ranked.json or test_ranked.json)*/ \
+    --output_addr /*address to where the outputs should be saved*/ \
+    --method rag \
+    --domain_adaptation cross_domain \
+    --target_domain /*target domain category (e.g., Art_and_Entertainment)*/ \
+    --num_target_domain_contexts /*number of posts from target domain to keep (e.g., 2)*/ \
+    --num_contexts 10 \
+    --temperature 0.1 \
+    --openai \
+    --api_key_addr /*address to a file that contains the API key for OpenAI*/
+```
+
+For **in-domain** adaptation (only posts from target domain):
+```shell
+python baselines.py \
+    --model_addr /*model address*/ \
+    --inputs_addr /*dataset address*/ \
+    --output_addr /*output address*/ \
+    --method rag \
+    --domain_adaptation in_domain \
+    --target_domain /*target domain category*/ \
+    --num_contexts 10 \
+    --temperature 0.1
+```
+
+For **multi-domain** adaptation (all posts):
+```shell
+python baselines.py \
+    --model_addr /*model address*/ \
+    --inputs_addr /*dataset address*/ \
+    --output_addr /*output address*/ \
+    --method rag \
+    --domain_adaptation multi_domain \
+    --num_contexts 10 \
+    --temperature 0.1
+```
+
+### D-RAG-Personalization (`--method aug2`)
+
+Uses an alternative augmentation-based personalization approach:
+
+```shell
+python baselines.py \
+    --model_addr /*model address*/ \
+    --inputs_addr /*dataset address*/ \
+    --output_addr /*output address*/ \
+    --method aug2 \
+    --domain_adaptation /*cross_domain/in_domain/multi_domain*/ \
+    --target_domain /*target domain (if using cross_domain or in_domain)*/ \
+    --num_target_domain_contexts /*number (if using cross_domain)*/ \
+    --num_contexts 10 \
+    --temperature 0.1
+```
+
+### Public Posts Only (`--method public_only`)
+
+Uses only public posts for personalization:
+
+```shell
+python baselines.py \
+    --model_addr /*model address*/ \
+    --inputs_addr /*dataset address*/ \
+    --output_addr /*output address*/ \
+    --method public_only \
+    --domain_adaptation /*cross_domain/in_domain/multi_domain*/ \
+    --target_domain /*target domain (if using cross_domain or in_domain)*/ \
+    --num_contexts 10 \
+    --temperature 0.1
+```
+
+## Additional Parameters
+
+- `--max_tokens`: Maximum tokens for generation (default: 8192)
+- `--num_generated_outputs`: Number of outputs to generate per query (default: 1)
+- `--max_retries`: Maximum retry attempts for failed generations (default: 3)
+- `--cache_dir`: Directory for caching models (default: ./cache)
+
+## PlanPers
+
+To run this baseline, we first need to train the planner model using the labels provided in the dataset. To perform this training step, start by running the following script:
+
+
+```shell
+python train_planner.py \
+    --inputs_addr /*address to the dataset file with ranked profile to be trained (train_ranked.json)*/ \
+    --model_addr /*the planner model name or address*/ \
+    --output_dir /*address to the checkpoint directory*/ \
+    --num_contexts /*number of user personal contexts to be used for personalization, we use 10*/
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 64 \
+    --learning_rate 5e-5 \
+    --weight_decay 0.0 \
+    --max_steps 2000 \
+    --save_steps 250 \
+    --warmup_steps 250 \
+    --max_seq_length 8192
+```
+
+After selecting the planner checkpoint, you can run this baseline with open-source LLMs using the following script:
+
+```shell
+python planpers.py \
+    --model_addr /*name of the OpenAI model to be evaluated*/ \
+    --planner_model /*address to the trained planner checkpoint*/ \
+    --inputs_addr /*address to the dataset file with ranked profile to be evaluated (validation_ranked.json or test_ranked.json)*/ \
+    --output_addr /*address to where the outputs should be saved*/ \
+    --temperature 0.1 \
+    --rag \
+    --num_contexts /*number of user personal contexts to be used for personalization, we use 10*/
+```
+
+For the OpenAI models, you can use the following script:
+
+```shell
+python planpers.py \
+    --model_addr /*name of the OpenAI model to be evaluated*/ \
+    --planner_model /*address to the trained planner checkpoint*/ \
+    --inputs_addr /*address to the dataset file with ranked profile to be evaluated (validation_ranked.json or test_ranked.json)*/ \
+    --output_addr /*address to where the outputs should be saved*/ \
+    --temperature 0.1 \
+    --rag \
+    --num_contexts /*number of user personal contexts to be used for personalization, we use 10*/
+    --openai \
+    --api_key_addr /*address to a file that contains the API key for OpenAI*/
+```

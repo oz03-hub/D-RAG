@@ -1,0 +1,6 @@
+api_key.txt
+logs/
+*__pycache__/
+*.pyc
+logs/
+scripts/

@@ -1,0 +1,17 @@
+backoff
+datasets
+huggingface_hub
+matplotlib
+numpy
+openai
+pandas
+peft
+protobuf
+scikit_learn
+seaborn
+tqdm
+transformers
+trl
+vllm
+xformers
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
